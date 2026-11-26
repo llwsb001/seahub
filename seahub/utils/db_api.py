@@ -40,23 +40,29 @@ class SeafileDB:
 
     def _get_seafile_db_name(self, sqlite_folder_permissions=False):
 
-        if env_seafile_db_name := os.environ.get('SEAFILE_MYSQL_DB_SEAFILE_DB_NAME', ''):
+        env_seafile_db_name = os.environ.get('SEAFILE_MYSQL_DB_SEAFILE_DB_NAME', '')
+        if env_seafile_db_name and not sqlite_folder_permissions:
             return env_seafile_db_name
 
-        conf_dir = os.environ.get('SEAFILE_CENTRAL_CONF_DIR') or \
-                os.environ.get('SEAFILE_DATA_DIR')
+        data_dir = os.environ.get('SEAFILE_DATA_DIR') or os.environ.get('SEAFILE_CONF_DIR')
+        conf_dir = os.environ.get('SEAFILE_CENTRAL_CONF_DIR') or data_dir
 
         if not conf_dir:
-            return ''
+            return env_seafile_db_name
 
         config = configparser.ConfigParser()
-        seafile_conf_path = os.path.join(conf_dir, 'seafile.conf')
-        config.read(seafile_conf_path)
+        config.read(Path(conf_dir).expanduser() / 'seafile.conf')
 
+        # seahub.sh can export a default MySQL database name for SQLite installs too.
         if sqlite_folder_permissions and config.get('database', 'type', fallback='').lower() == 'sqlite':
-            data_dir = Path(os.environ['SEAFILE_DATA_DIR'])
-            self._folder_permissions_uri = (data_dir / 'seafile.db').absolute().as_uri() + '?mode=ro'
+            if not data_dir:
+                raise ValueError('SEAFILE_DATA_DIR or SEAFILE_CONF_DIR is required for SQLite')
+            db_path = Path(data_dir).expanduser() / 'seafile.db'
+            self._folder_permissions_uri = db_path.absolute().as_uri() + '?mode=ro'
             return None
+
+        if env_seafile_db_name:
+            return env_seafile_db_name
 
         if not config.has_section('database'):
             return 'seafile_db'

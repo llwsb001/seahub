@@ -20,7 +20,15 @@ def sqlite_data_dir(monkeypatch, tmp_path):
     return data_dir
 
 
-def test_sqlite_hidden_paths_use_the_core_database(sqlite_data_dir):
+@pytest.mark.parametrize('data_dir_variable', ('SEAFILE_DATA_DIR', 'SEAFILE_CONF_DIR'))
+@pytest.mark.parametrize('mysql_db_name', (None, 'seafile_db'))
+def test_sqlite_hidden_paths_use_the_core_database(
+        sqlite_data_dir, monkeypatch, data_dir_variable, mysql_db_name):
+    monkeypatch.delenv('SEAFILE_DATA_DIR')
+    monkeypatch.setenv(data_dir_variable, str(sqlite_data_dir))
+    if mysql_db_name is not None:
+        monkeypatch.setenv('SEAFILE_MYSQL_DB_SEAFILE_DB_NAME', mysql_db_name)
+
     with closing(sqlite3.connect(sqlite_data_dir / 'seafile.db')) as db:
         db.executescript("""
             CREATE TABLE FolderUserPerm (repo_id, path, permission, user);
